@@ -9,11 +9,6 @@ on:
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
-
-env:
-  ACTIONS_ALLOW_USE_UNSECURE_NODE_VERSION: "true"
-  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
-
 jobs:
   build:
     name: Build ${{ matrix.targetPlatform }} on ${{ matrix.os }}
@@ -63,6 +58,9 @@ jobs:
           restore-keys: |
             Library-${{ matrix.targetPlatform }}-
             Library-
+
+      - name: Ensure Library folder exists
+        run: mkdir -p Library
 
       - name: Build Unity Project (${{ matrix.targetPlatform }})
         uses: game-ci/unity-builder@v4
