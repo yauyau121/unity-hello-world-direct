@@ -1,0 +1,92 @@
+name: Build All Platforms and Architectures
+on:
+  push:
+    branches: [ main, master ]
+  pull_request:
+    branches: [ main, master ]
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  ACTIONS_ALLOW_USE_UNSECURE_NODE_VERSION: "true"
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
+
+jobs:
+  build:
+    name: Build ${{ matrix.targetPlatform }} on ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - targetPlatform: StandaloneWindows64
+            os: ubuntu-latest
+            artifactName: HelloWorld-Windows-x64
+            buildPath: Build/StandaloneWindows64
+          - targetPlatform: StandaloneLinux64
+            os: ubuntu-latest
+            artifactName: HelloWorld-Linux-x64
+            buildPath: Build/StandaloneLinux64
+          - targetPlatform: StandaloneOSX
+            os: ubuntu-latest
+            artifactName: HelloWorld-macOS-Universal
+            buildPath: Build/StandaloneOSX
+          - targetPlatform: WebGL
+            os: ubuntu-latest
+            artifactName: HelloWorld-WebGL
+            buildPath: Build/WebGL
+          - targetPlatform: Android
+            os: ubuntu-latest
+            artifactName: HelloWorld-Android
+            buildPath: Build/Android
+          - targetPlatform: iOS
+            os: ubuntu-latest
+            artifactName: HelloWorld-iOS
+            buildPath: Build/iOS
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          lfs: true
+
+      - name: Cache Unity Library
+        uses: actions/cache@v4
+        with:
+          path: Library
+          key: Library-${{ matrix.targetPlatform }}-${{ hashFiles('Assets/**', 'Packages/**', 'ProjectSettings/**') }}
+          restore-keys: |
+            Library-${{ matrix.targetPlatform }}-
+            Library-
+
+      - name: Build Unity Project (${{ matrix.targetPlatform }})
+        uses: game-ci/unity-builder@v4
+        env:
+          UNITY_LICENSE: ${{ secrets.UNITY_LICENSE }}
+        with:
+          targetPlatform: ${{ matrix.targetPlatform }}
+          unityVersion: 6000.5.10f1
+          projectPath: .
+          buildsPath: ${{ matrix.buildPath }}
+          buildMethod: BuildScript.PerformBuild
+          allowDirtyBuild: true
+
+      - name: Generate SHA-256 Checksum
+        run: |
+          mkdir -p ${{ matrix.buildPath }}
+          if [ -d "${{ matrix.buildPath }}" ]; then
+            cd "${{ matrix.buildPath }}" && find . -type f -exec sha256sum {} + > SHA256SUMS.txt || true
+          fi
+
+      - name: Upload Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.artifactName }}
+          path: ${{ matrix.buildPath }}
+          if-no-files-found: warn
+          retention-days: 14
